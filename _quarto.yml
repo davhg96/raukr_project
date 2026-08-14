@@ -1,0 +1,33 @@
+project:
+  type: website
+  render:
+    - index.qmd
+    - wine-quality-world.qmd
+    - best-wine-searcher.qmd
+    - global-warming-wine.qmd
+
+website:
+  title: "Wine & Climate"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: wine-quality-world.qmd
+        text: "Wine quality in the world"
+      - href: best-wine-searcher.qmd
+        text: "Best wine searcher"
+      - href: global-warming-wine.qmd
+        text: "Global warming and wine"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    grid:
+      body-width: 1000px
+    code-fold: true
+    code-tools: true
+
+execute:
+  freeze: auto
+  warning: false

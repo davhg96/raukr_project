@@ -1,0 +1,170 @@
+---
+title: "Global warming and wine"
+---
+
+```{r}
+#| label: setup
+#| message: false
+
+library(dplyr)
+library(ggplot2)
+library(ggiraph)
+library(plotly)
+library(crosstalk)
+
+source("R/wrangle_wine.R")
+source("R/wrangle_co2.R")
+
+wine <- get_wine_data()
+co2_country <- get_co2_data()
+co2_world <- get_co2_world()
+
+min_vintage <- min(wine$vintage, na.rm = TRUE)
+max_co2_year <- max(co2_country$year)
+```
+
+## Cumulative CO2 emissions and wine quality, side by side
+
+The slider below spans `r min_vintage`\u2013`r max_co2_year`: from the oldest
+wine vintage in the dataset through the most recent year available in the
+CO2 data. **Note**: vintages before roughly 2000 are extremely sparse in the
+wine dataset (often a single wine per year), so the wine-quality map will
+look mostly empty for early years — this is a data coverage limitation, not
+a real absence of production.
+
+```{r}
+#| label: combined-data
+#| message: false
+
+wine_country_year <- wine |>
+  filter(!is.na(vintage), !is.na(country_iso3)) |>
+  group_by(country_iso3, vintage) |>
+  summarise(
+    avg_points = mean(points, na.rm = TRUE),
+    n_high_90 = sum(points >= 90, na.rm = TRUE),
+    n_wines = n(),
+    .groups = "drop"
+  )
+
+combined <- co2_country |>
+  filter(year >= min_vintage, year <= max_co2_year) |>
+  select(country, iso_code, year, cumulative_co2) |>
+  left_join(
+    wine_country_year,
+    by = c("iso_code" = "country_iso3", "year" = "vintage")
+  ) |>
+  mutate(
+    co2_hover = paste0("<b>", country, "</b><br>", year, "<br>Cumulative CO2: ", round(cumulative_co2, 0), " Mt"),
+    wine_hover = ifelse(
+      is.na(avg_points),
+      paste0("<b>", country, "</b><br>", year, "<br>No wine reviews for this vintage"),
+      paste0(
+        "<b>", country, "</b><br>", year,
+        "<br>Avg. score: ", round(avg_points, 1),
+        "<br>Wines scoring \u226590: ", n_high_90,
+        " / ", n_wines
+      )
+    )
+  )
+
+shared_combined <- SharedData$new(combined, key = ~iso_code, group = "co2_year")
+```
+
+::: {.panel-tabset}
+
+### Cumulative CO2 emissions
+
+```{r}
+#| label: co2-map
+#| message: false
+
+plot_geo(shared_combined) |>
+  add_trace(
+    z = ~cumulative_co2, color = ~cumulative_co2, colors = "OrRd",
+    locations = ~iso_code, text = ~co2_hover, hoverinfo = "text"
+  ) |>
+  colorbar(title = "Cumulative\nCO2 (Mt)") |>
+  layout(geo = list(showframe = FALSE, showcoastlines = FALSE, projection = list(type = "natural earth")))
+```
+
+### Average wine score
+
+```{r}
+#| label: wine-map
+#| message: false
+
+plot_geo(shared_combined) |>
+  add_trace(
+    z = ~avg_points, color = ~avg_points, colors = "RdYlGn",
+    locations = ~iso_code, text = ~wine_hover, hoverinfo = "text"
+  ) |>
+  colorbar(title = "Avg. score\n(pts)") |>
+  layout(geo = list(showframe = FALSE, showcoastlines = FALSE, projection = list(type = "natural earth")))
+```
+
+:::
+
+```{r}
+#| label: year-slider
+
+filter_slider("year", "Year", shared_combined, ~year, step = 1, width = "100%")
+```
+
+Use the tabs to switch between the two maps and the slider above to move
+through years — both maps are linked to the same year selection, so you can
+flip back and forth to compare a given year's cumulative emissions against
+that vintage's wine scores. Bear in mind this is a purely descriptive,
+country-level comparison: wine quality here reflects only the country's
+average review score for wines reviewed by Wine Enthusiast in that vintage,
+which is affected by which countries/producers happened to be reviewed, not
+a controlled measure of climate impact on quality.
+
+## Does wine-growing latitude shift as CO2 accumulates?
+
+As a proxy for whether high-quality wine production is shifting toward
+higher latitudes as the climate warms, we track the (unweighted) mean
+absolute latitude of each vintage's highly-rated wines (points \u2265 90)
+against global cumulative CO2 emissions for that year. We restrict to years
+with at least 10 such wines, since earlier/sparser years would otherwise be
+dominated by one or two data points.
+
+```{r}
+#| label: latitude-co2
+#| message: false
+#| fig-height: 5
+
+wine_year_lat <- wine |>
+  filter(!is.na(vintage), points >= 90, !is.na(wine_region_latitude)) |>
+  group_by(vintage) |>
+  summarise(mean_abs_latitude = mean(abs(wine_region_latitude)), n_wines = n(), .groups = "drop")
+
+lat_co2 <- wine_year_lat |>
+  inner_join(co2_world, by = c("vintage" = "year")) |>
+  filter(n_wines >= 10)
+
+spearman_lat <- cor(lat_co2$mean_abs_latitude, lat_co2$cumulative_co2, method = "spearman")
+
+girafe(ggobj = ggplot(lat_co2, aes(cumulative_co2, mean_abs_latitude)) +
+  geom_point_interactive(aes(tooltip = paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines), size = n_wines)) +
+  geom_path(alpha = 0.3) +
+  labs(
+    x = "Global cumulative CO2 emissions (Mt)",
+    y = "Mean |latitude| of \u226590-point wines",
+    size = "N wines"
+  ))
+```
+
+Spearman correlation: `r round(spearman_lat, 2)`.
+
+Over the `r min(lat_co2$vintage)`\u2013`r max(lat_co2$vintage)` window covered
+by high-scoring wines with known region latitude, the correlation between
+global cumulative CO2 and mean production latitude is weak
+(`r round(spearman_lat, 2)`). This is not strong evidence of a
+climate-driven shift: the wine-region latitude here is a coarse,
+country-level approximation (not per-vineyard), the time window is short
+and dominated by 1990s–2010s data, and which countries/producers get
+reviewed each year likely changes for reasons unrelated to climate (market
+growth, reviewer assignment, publication coverage). Treat this as a
+starting point for a much more careful analysis (e.g. region-level
+coordinates, controlling for which countries are reviewed each year) rather
+than a conclusive finding.

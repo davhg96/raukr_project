@@ -1,0 +1,8 @@
+.Rprofile
+data/
+renv
+_freeze
+_site
+.posit
+/.quarto/
+**/*.quarto_ipynb

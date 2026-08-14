@@ -1,0 +1,101 @@
+---
+title: "Best wine searcher"
+---
+
+```{r}
+#| label: setup
+#| message: false
+
+library(dplyr)
+library(plotly)
+library(DT)
+
+source("R/wrangle_wine.R")
+wine <- get_wine_data()
+
+max_vintage <- max(wine$vintage, na.rm = TRUE)
+```
+
+Hover over a country on the map to see its highest-rated wine from the last
+10 vintages in the data (`r max_vintage - 9`\u2013`r max_vintage`) and its best
+value-for-money wine (highest points-per-dollar) across all vintages.
+
+```{r}
+#| label: country-map
+#| message: false
+
+recent <- wine |>
+  filter(!is.na(vintage), vintage >= max_vintage - 9, !is.na(country_iso3))
+
+best_recent <- recent |>
+  group_by(country_iso3, country) |>
+  slice_max(points, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  transmute(country_iso3, country, best_title = title, best_points = points, best_price = price)
+
+best_value <- wine |>
+  filter(!is.na(price), price > 0, !is.na(country_iso3)) |>
+  mutate(value_ratio = points / price) |>
+  group_by(country_iso3) |>
+  slice_max(value_ratio, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  transmute(
+    country_iso3,
+    value_title = title,
+    value_ratio = round(value_ratio, 2),
+    value_points = points,
+    value_price = price
+  )
+
+country_summary <- best_recent |>
+  left_join(best_value, by = "country_iso3") |>
+  mutate(
+    hover_text = paste0(
+      "<b>", country, "</b><br>",
+      "Best (", max_vintage - 9, "\u2013", max_vintage, "): ", best_title,
+      " (", best_points, " pts",
+      ifelse(is.na(best_price), "", paste0(", $", best_price)), ")<br>",
+      "Best value: ", value_title,
+      " (", value_points, " pts, $", value_price,
+      " \u2014 ", value_ratio, " pts/$)"
+    )
+  )
+
+plot_geo(country_summary) |>
+  add_trace(
+    z = ~best_points,
+    color = ~best_points,
+    colors = "YlOrRd",
+    locations = ~country_iso3,
+    text = ~hover_text,
+    hoverinfo = "text",
+    marker = list(line = list(color = toRGB("grey50"), width = 0.5))
+  ) |>
+  colorbar(title = "Best recent\nscore (pts)") |>
+  layout(
+    geo = list(
+      showframe = FALSE,
+      showcoastlines = FALSE,
+      projection = list(type = "natural earth")
+    )
+  )
+```
+
+## Filterable wine data
+
+```{r}
+#| label: data-table
+
+wine |>
+  filter(!is.na(country)) |>
+  transmute(
+    title, country, province, variety,
+    points, price, vintage,
+    taster_name, winery
+  ) |>
+  datatable(
+    filter = "top",
+    rownames = FALSE,
+    options = list(pageLength = 15, scrollX = TRUE)
+  )
+```
