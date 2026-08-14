@@ -1,5 +1,6 @@
 .Rprofile
-data/
+data/CO2*
+data/winemag*
 renv
 _freeze
 _site
