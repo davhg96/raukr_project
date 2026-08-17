@@ -12,9 +12,8 @@ library(stringr)
 library(ggplot2)
 library(ggiraph)
 library(tidytext)
-
-source("R/wrangle_wine.R")
-wine <- get_wine_data()
+library(highcharter)
+library(magrittr)
 ```
 
 This page explores the `winemag` wine-tasting reviews: how price varies by
@@ -27,21 +26,30 @@ what language distinguishes highly- vs. poorly-rated wines.
 #| label: province-price
 #| fig-height: 5
 
+wine <- read_csv("winemag-data-130k-v2.csv")
+colnames(wine)
+data(GNI2014, package = "treemap") # This data is needed to get the iso3  from the country name
+
 prov_price <- wine |>
   filter(!is.na(province), !is.na(price)) |>
-  group_by(province) |>
-  summarise(avg_price = mean(price), n_wines = n(), .groups = "drop")
+  group_by(country) |>
+  summarise(avg_price = mean(price), n_wines = n(), .groups = "drop") |>
+  left_join(GNI2014 |> dplyr::select(iso3, country) |> distinct(), by = "country")
 
-top_all <- prov_price |> slice_max(avg_price, n = 10)
-top_10plus <- prov_price |> filter(n_wines >= 10) |> slice_max(avg_price, n = 10)
 
-plot_province_price <- function(df, subtitle) {
-  ggplot(df, aes(x = avg_price, y = reorder(province, avg_price))) +
-    geom_col_interactive(aes(tooltip = paste0(province, ": $", round(avg_price, 1), " (n=", n_wines, ")"))) +
-    labs(x = "Average price (USD)", y = NULL, subtitle = subtitle)
-}
+hcmap(map = "custom/world-robinson-lowres", 
+  download_map_data = getOption("highcharter.download_map_data"), 
+  data = prov_price,
+  value = "avg_price", 
+  joinBy = c("iso-a3", "iso3")) |> 
+    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)))
 
-girafe(ggobj = plot_province_price(top_all, "All provinces (unfiltered)"))
+
+prov_price %$% plot(density(avg_price))
+prov_price %$% 
+  hchart(avg_price, color = "#17b8b6", name = "average price") |> 
+  hc_title(text = "Distribution of average price by country")
+
 ```
 
 Unfiltered, the top provinces by average price are dominated by
