@@ -10,6 +10,7 @@ library(dplyr)
 library(plotly)
 library(crosstalk)
 library(highcharter)
+library(countrycode)
 
 source("R/wrangle_wine.R")
 source("R/wrangle_co2.R")
@@ -82,6 +83,19 @@ wine_years <- wine |>
   )
 
 shared_wine <- SharedData$new(wine_years, key = ~key, group = "wine_year_filter")
+
+# Every ISO3 country code, so the map can show the full world (countries
+# without a wine review for the selected year(s) are drawn in flat grey
+# rather than left blank).
+world_countries <- countrycode::codelist |>
+  filter(!is.na(iso3c)) |>
+  distinct(iso3c) |>
+  transmute(iso_code = iso3c)
+
+# Fixed across the *entire* wine_years range (not the currently-filtered
+# subset), so a given score always maps to the same color regardless of
+# which year(s) the slider has selected.
+wine_value_range <- range(wine_years$value, na.rm = TRUE)
 ```
 
 ```{r}
@@ -90,11 +104,24 @@ shared_wine <- SharedData$new(wine_years, key = ~key, group = "wine_year_filter"
 
 # plotly has built-in crosstalk support, so the map filters directly from the
 # slider below with no manual JS/aggregation needed. `value` is already a
-# plain (unweighted) per-country/vintage average.
-plot_geo(shared_wine) |>
+# plain (unweighted) per-country/vintage average. The grey trace is drawn
+# first (and isn't a crosstalk SharedData, so it always shows every
+# country); the wine-score trace draws on top and only overrides countries
+# that have data for the current filter.
+plot_geo() |>
   add_trace(
-    z = ~value, color = ~value, colors = "RdYlGn",
-    locations = ~iso_code, text = ~hover, hoverinfo = "text"
+    data = world_countries,
+    locations = ~iso_code, locationmode = "ISO-3",
+    z = 1, colorscale = list(list(0, "#e0e0e0"), list(1, "#e0e0e0")),
+    showscale = FALSE, hoverinfo = "text",
+    text = "No wine reviews for the selected year(s)"
+  ) |>
+  add_trace(
+    data = shared_wine,
+    locations = ~iso_code, locationmode = "ISO-3",
+    z = ~value, zauto = FALSE, zmin = wine_value_range[1], zmax = wine_value_range[2],
+    color = ~value, colors = "RdYlGn",
+    text = ~hover, hoverinfo = "text"
   ) |>
   colorbar(title = "Avg. score\n(pts)") |>
   layout(
