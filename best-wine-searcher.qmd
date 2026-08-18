@@ -1,101 +1,56 @@
----
+﻿---
 title: "Best wine searcher"
 ---
 
 ```{r}
-#| label: setup
-#| message: false
+setwd("C:/Users/anibe163/OneDrive - Uppsala universitet/Skrivbordet/Winologist project/raukr_project_Anish-1/data")
+```
 
-library(dplyr)
-library(plotly)
+```{r}
+library(tidyverse)
+library(highcharter)
 library(DT)
 
-source("R/wrangle_wine.R")
-wine <- get_wine_data()
-
-max_vintage <- max(wine$vintage, na.rm = TRUE)
+wine <- read_csv("winemag-data-130k-v2.csv")
+head(wine)
 ```
-
-Hover over a country on the map to see its highest-rated wine from the last
-10 vintages in the data (`r max_vintage - 9`\u2013`r max_vintage`) and its best
-value-for-money wine (highest points-per-dollar) across all vintages.
 
 ```{r}
-#| label: country-map
-#| message: false
+#| label: tbl-cap
 
-recent <- wine |>
-  filter(!is.na(vintage), vintage >= max_vintage - 9, !is.na(country_iso3))
-
-best_recent <- recent |>
-  group_by(country_iso3, country) |>
-  slice_max(points, n = 1, with_ties = FALSE) |>
-  ungroup() |>
-  transmute(country_iso3, country, best_title = title, best_points = points, best_price = price)
-
-best_value <- wine |>
-  filter(!is.na(price), price > 0, !is.na(country_iso3)) |>
-  mutate(value_ratio = points / price) |>
-  group_by(country_iso3) |>
-  slice_max(value_ratio, n = 1, with_ties = FALSE) |>
-  ungroup() |>
-  transmute(
-    country_iso3,
-    value_title = title,
-    value_ratio = round(value_ratio, 2),
-    value_points = points,
-    value_price = price
-  )
-
-country_summary <- best_recent |>
-  left_join(best_value, by = "country_iso3") |>
-  mutate(
-    hover_text = paste0(
-      "<b>", country, "</b><br>",
-      "Best (", max_vintage - 9, "\u2013", max_vintage, "): ", best_title,
-      " (", best_points, " pts",
-      ifelse(is.na(best_price), "", paste0(", $", best_price)), ")<br>",
-      "Best value: ", value_title,
-      " (", value_points, " pts, $", value_price,
-      " \u2014 ", value_ratio, " pts/$)"
-    )
-  )
-
-plot_geo(country_summary) |>
-  add_trace(
-    z = ~best_points,
-    color = ~best_points,
-    colors = "YlOrRd",
-    locations = ~country_iso3,
-    text = ~hover_text,
-    hoverinfo = "text",
-    marker = list(line = list(color = toRGB("grey50"), width = 0.5))
-  ) |>
-  colorbar(title = "Best recent\nscore (pts)") |>
-  layout(
-    geo = list(
-      showframe = FALSE,
-      showcoastlines = FALSE,
-      projection = list(type = "natural earth")
-    )
-  )
+wine %>% select(country, points, price, province, variety, title) %>%
+  mutate(year = as.numeric(str_extract(title, "\\d{4}"))) %>%
+  select(-title) %>%
+  datatable()
 ```
+@tbl-cap Shows the overall wine quality in the world
 
-## Filterable wine data
+
 
 ```{r}
-#| label: data-table
+data(GNI2014, package = "treemap")
 
-wine |>
-  filter(!is.na(country)) |>
-  transmute(
-    title, country, province, variety,
-    points, price, vintage,
-    taster_name, winery
-  ) |>
-  datatable(
-    filter = "top",
-    rownames = FALSE,
-    options = list(pageLength = 15, scrollX = TRUE)
-  )
+wine_points <- wine |>
+    filter(!is.na(province), !is.na(price)) |>
+    mutate(country = ifelse(country=="US", "United States", country)) |>
+    mutate(country = ifelse(country=="Macedonia", "Macedonia, FYR", country)) |>
+    mutate(country = ifelse(country=="Slovakia", "Slovak Republic", country)) |>
+    mutate(country = ifelse(country=="England", "United Kingdom", country)) |>
+    group_by(country) |>
+    summarise(avg_points = mean(points), .groups = "drop") |>
+    left_join(GNI2014 |> dplyr::select(iso3, country) |> distinct(), by = "country")
+
 ```
+
+
+```{r}
+#| label: fig-province-points
+#| fig-height: 5
+hcmap(map = "custom/world-robinson-lowres",
+  download_map_data = getOption("highcharter.download_map_data"),
+  data = wine_points,
+  value = "avg_points",
+  joinBy = c("iso-a3", "iso3")) |>
+    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)))
+```
+@fig-province-points shows the average points by country.
