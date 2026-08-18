@@ -11,6 +11,7 @@ library(plotly)
 library(crosstalk)
 library(highcharter)
 library(countrycode)
+library(RColorBrewer)
 
 source("R/wrangle_wine.R")
 source("R/wrangle_co2.R")
@@ -108,6 +109,13 @@ wine_value_range <- range(wine_years$value, na.rm = TRUE)
 # first (and isn't a crosstalk SharedData, so it always shows every
 # country); the wine-score trace draws on top and only overrides countries
 # that have data for the current filter.
+
+ylgn_colors <- brewer.pal(9, "YlGn")  # -color light yellow -> dark green ramp
+ylgn_colorscale <- Map(function(x, col) list(x, col),
+                        seq(0, 1, length.out = length(ylgn_colors)),
+                        ylgn_colors)
+
+
 plot_geo() |>
   add_trace(
     data = world_countries,
@@ -120,7 +128,7 @@ plot_geo() |>
     data = shared_wine,
     locations = ~iso_code, locationmode = "ISO-3",
     z = ~value, zauto = FALSE, zmin = wine_value_range[1], zmax = wine_value_range[2],
-    color = ~value, colors = "RdYlGn",
+    colorscale = ylgn_colorscale,
     text = ~hover, hoverinfo = "text"
   ) |>
   colorbar(title = "Avg. score\n(pts)") |>
