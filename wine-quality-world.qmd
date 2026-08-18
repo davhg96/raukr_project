@@ -19,12 +19,8 @@ library(glmnet)
 library(gt)
 ```
 
-This page explores the `winemag` wine-tasting reviews: how price varies by
-province, whether points predict price, whether reviewers specialize, and
-what language distinguishes highly- vs. poorly-rated wines.
 
-## Which province has the highest average price?
-
+## Wine price by country
 ```{r}
 #| label: fig-price
 #| fig-height: 5
@@ -35,11 +31,28 @@ data(GNI2014, package = "treemap") # This data is needed to get the iso3  from t
 
 prov_price <- wine |>
   filter(!is.na(province), !is.na(price)) |>
+  mutate(country = ifelse(country=="US", "United States", country)) |>
+  mutate(country = ifelse(country=="Macedonia", "Macedonia, FYR", country)) |>
+  mutate(country = ifelse(country=="Slovakia", "Slovak Republic", country)) |>
+  mutate(country = ifelse(country=="England", "United Kingdom", country)) |>
   group_by(country) |>
   summarise(avg_price = mean(price), n_wines = n(), .groups = "drop") |>
   left_join(GNI2014 |> dplyr::select(iso3, country) |> distinct(), by = "country")
 ```
 
+### Top 5 countries by average wine price
+```{r}
+#| column: margin
+
+prov_price |> 
+  arrange(desc(avg_price)) |> head(5) |>
+  hchart(
+    type = "column",
+    hcaes(x = country, y = avg_price),
+    options3d = list(enabled = TRUE, beta = 15, alpha = 15))
+```
+
+## Number of wines by country
 ```{r}
 #| label: fig-province-price
 #| fig-height: 5
@@ -52,6 +65,19 @@ hcmap(map = "custom/world-robinson-lowres",
 ```
 @fig-province-price shows the average price by country.
 
+### Top 5 countries by number of wines
+```{r}
+#| column: margin
+
+prov_price |> 
+  arrange(desc(n_wines)) |> head(5) |>
+  hchart(
+    type = "column",
+    hcaes(x = country, y = n_wines),
+    options3d = list(enabled = TRUE, beta = 15, alpha = 15))
+```
+
+## Distribution of wine prices by country
 ```{r}
 #| label: fig-nwines-price
 #| fig-height: 5
@@ -64,6 +90,8 @@ hcmap(map = "custom/world-robinson-lowres",
 ```
 @fig-nwines-price shows the number of wines by country.
 
+
+## Distribution of average price and number of wines by country
 ```{r}
 #| label: fig-province-price-density
 #| fig-height: 5
@@ -74,6 +102,7 @@ prov_price %$%
 ```
 @fig-province-price-density shows the distribution of average price by country.
 
+### Distribution of number of wines by country
 ```{r}
 #| label: fig-province-nwines-density
 #| fig-height: 5
@@ -87,11 +116,7 @@ prov_price %$%
 
 ## Do points predict price?
 
-Price is strongly right-skewed (a few wines cost hundreds of dollars while
-most are under $50), so a plain Pearson correlation on raw price is
-misleading. We compare **Spearman's rank correlation** (robust to skew) with
-Pearson's correlation computed on **log-price**.
-
+### Correlation between points and price
 ```{r}
 #| label: points-price-corr
 
@@ -105,16 +130,16 @@ pearson_raw_r <- cor(wp$points, wp$price)
 ```
 - Spearman rank correlation is: `r round(spearman_r, 2)`
 
-
+### linear model if points predict log-price
 ```{r}
-log_price_model <- lm(log(price) ~ points, data = wp)
-pearson_r_logprice <- cor(wp$points, log(wp$price))
+log_price_model <- lm(log2(price+1) ~ points, data = wp)
+pearson_r_logprice <- cor(wp$points, log2(wp$price+1))
 summary(log_price_model) 
 ```
 - Pearson correlation on log-price is: `r round(pearson_r_logprice, 2)`
 - The log-price model explains `r round(summary(log_price_model)$r.squared, 2)` of the variation in log-price.
 
-
+## Relationship between points and log-price
 ```{r}
 #| label: fig-points-vs-price
 #| fig-height: 5
@@ -124,5 +149,4 @@ summary(log_price_model)
 hchart(wp, "scatter", hcaes(x = points, y = log2(price+1)))
 ```
 @fig-points-vs-price shows the relationship between points and log-price.
-
 
