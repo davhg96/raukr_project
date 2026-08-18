@@ -7,10 +7,11 @@ title: "Global warming and wine"
 #| message: false
 
 library(dplyr)
-library(ggplot2)
-library(ggiraph)
 library(plotly)
 library(crosstalk)
+library(highcharter)
+library(htmlwidgets)
+library(jsonlite)
 
 source("R/wrangle_wine.R")
 source("R/wrangle_co2.R")
@@ -25,95 +26,156 @@ max_co2_year <- max(co2_country$year)
 
 ## Cumulative CO2 emissions and wine quality, side by side
 
-The slider below spans `r min_vintage`\u2013`r max_co2_year`: from the oldest
-wine vintage in the dataset through the most recent year available in the
-CO2 data. **Note**: vintages before roughly 2000 are extremely sparse in the
-wine dataset (often a single wine per year), so the wine-quality map will
-look mostly empty for early years — this is a data coverage limitation, not
-a real absence of production.
-
-```{r}
-#| label: combined-data
-#| message: false
-
-wine_country_year <- wine |>
-  filter(!is.na(vintage), !is.na(country_iso3)) |>
-  group_by(country_iso3, vintage) |>
-  summarise(
-    avg_points = mean(points, na.rm = TRUE),
-    n_high_90 = sum(points >= 90, na.rm = TRUE),
-    n_wines = n(),
-    .groups = "drop"
-  )
-
-combined <- co2_country |>
-  filter(year >= min_vintage, year <= max_co2_year) |>
-  select(country, iso_code, year, cumulative_co2) |>
-  left_join(
-    wine_country_year,
-    by = c("iso_code" = "country_iso3", "year" = "vintage")
-  ) |>
-  mutate(
-    co2_hover = paste0("<b>", country, "</b><br>", year, "<br>Cumulative CO2: ", round(cumulative_co2, 0), " Mt"),
-    wine_hover = ifelse(
-      is.na(avg_points),
-      paste0("<b>", country, "</b><br>", year, "<br>No wine reviews for this vintage"),
-      paste0(
-        "<b>", country, "</b><br>", year,
-        "<br>Avg. score: ", round(avg_points, 1),
-        "<br>Wines scoring \u226590: ", n_high_90,
-        " / ", n_wines
-      )
-    )
-  )
-
-shared_combined <- SharedData$new(combined, key = ~iso_code, group = "co2_year")
-```
-
-::: {.panel-tabset}
-
-### Cumulative CO2 emissions
+The two maps below are stacked so both are always visible. The **cumulative
+CO2** map is static — it shows each country's all-time cumulative emissions
+as of `r max_co2_year`, since cumulative totals only grow monotonically and
+aren't meaningfully "sliced" by a single vintage year. The slider underneath
+filters only the **wine score** map, letting you step through vintages
+`r min_vintage`\u2013`r max_co2_year` (or select a range, which is averaged,
+weighted by number of wines). **Note**: vintages before roughly 2000 are
+extremely sparse in the wine dataset (often a single wine per year), so the
+wine-quality map will look mostly empty/uniform for early years — this is a
+data coverage limitation, not a real absence of production.
 
 ```{r}
 #| label: co2-map
 #| message: false
 
-plot_geo(shared_combined) |>
-  add_trace(
-    z = ~cumulative_co2, color = ~cumulative_co2, colors = "OrRd",
-    locations = ~iso_code, text = ~co2_hover, hoverinfo = "text"
-  ) |>
-  colorbar(title = "Cumulative\nCO2 (Mt)") |>
-  layout(geo = list(showframe = FALSE, showcoastlines = FALSE, projection = list(type = "natural earth")))
+co2_latest <- co2_country |>
+  filter(year == max_co2_year) |>
+  transmute(iso_code, country, value = cumulative_co2)
+
+hcmap(
+  "custom/world",
+  data = co2_latest,
+  joinBy = c("iso-a3", "iso_code"),
+  value = "value",
+  name = "Cumulative CO2 (Mt)",
+  borderWidth = 0.1
+) |>
+  hc_colorAxis(minColor = "#fff7ec", maxColor = "#7f0000", type = "logarithmic") |>
+  hc_title(text = paste0("Cumulative CO2 emissions by country (as of ", max_co2_year, ")")) |>
+  hc_tooltip(pointFormat = "{point.name}: {point.value:,.0f} Mt") |>
+  hc_mapNavigation(enabled = TRUE)
 ```
 
-### Average wine score
+```{r}
+#| label: wine-year-data
+#| message: false
+
+wine_years <- wine |>
+  filter(
+    !is.na(vintage), !is.na(country_iso3),
+    vintage >= min_vintage, vintage <= max_co2_year
+  ) |>
+  group_by(country_iso3, vintage) |>
+  summarise(
+    value = round(mean(points, na.rm = TRUE), 1),
+    n_high_90 = sum(points >= 90, na.rm = TRUE),
+    n_wines = n(),
+    .groups = "drop"
+  ) |>
+  transmute(
+    iso_code = country_iso3, year = vintage, value, n_wines, n_high_90,
+    key = paste(iso_code, year, sep = "_")
+  )
+
+# Weighted by n_wines so a country's aggregate score over a multi-year
+# selection isn't dominated by sparsely-reviewed years.
+aggregate_wine <- function(df) {
+  df |>
+    group_by(iso_code) |>
+    summarise(
+      value = round(weighted.mean(value, w = n_wines), 1),
+      n_wines = sum(n_wines),
+      n_high_90 = sum(n_high_90),
+      .groups = "drop"
+    )
+}
+
+# The slider starts unfiltered (full range), so the initial map shows the
+# all-years aggregate to match that starting state.
+initial_wine_agg <- aggregate_wine(wine_years)
+
+shared_wine <- SharedData$new(wine_years, key = ~key, group = "wine_year_filter")
+```
 
 ```{r}
 #| label: wine-map
 #| message: false
 
-plot_geo(shared_combined) |>
-  add_trace(
-    z = ~avg_points, color = ~avg_points, colors = "RdYlGn",
-    locations = ~iso_code, text = ~wine_hover, hoverinfo = "text"
-  ) |>
-  colorbar(title = "Avg. score\n(pts)") |>
-  layout(geo = list(showframe = FALSE, showcoastlines = FALSE, projection = list(type = "natural earth")))
-```
+wine_map <- hcmap(
+  "custom/world",
+  data = initial_wine_agg,
+  joinBy = c("iso-a3", "iso_code"),
+  value = "value",
+  name = "Avg. wine score"
+) |>
+  hc_colorAxis(minColor = "#d73027", maxColor = "#1a9850") |>
+  hc_title(text = "Average wine score by country") |>
+  hc_subtitle(text = paste0(
+    "All vintages ", min_vintage, "\u2013", max_co2_year,
+    " \u2014 use the slider below to filter"
+  )) |>
+  hc_tooltip(pointFormat = "{point.name}: {point.value} pts") |>
+  hc_mapNavigation(enabled = TRUE)
 
-:::
+# highcharter has no native crosstalk support (unlike plotly), so the map's
+# choropleth series is re-aggregated and updated by hand: this JS listens for
+# the crosstalk filter driven by the slider below and recomputes each
+# country's weighted-average score from just the rows whose keys currently
+# pass the filter (or all rows, when nothing is filtered).
+wine_records_json <- toJSON(
+  wine_years[c("key", "iso_code", "value", "n_wines", "n_high_90")],
+  dataframe = "rows"
+)
+
+wine_map_js <- sprintf("
+function(el, x) {
+  var records = %s;
+  var group = '%s';
+
+  function aggregate(keys) {
+    var included = keys ? new Set(keys) : null;
+    var totals = {};
+    records.forEach(function(r) {
+      if (included && !included.has(r.key)) return;
+      if (!totals[r.iso_code]) totals[r.iso_code] = {sum: 0, n: 0, n90: 0};
+      totals[r.iso_code].sum += r.value * r.n_wines;
+      totals[r.iso_code].n += r.n_wines;
+      totals[r.iso_code].n90 += r.n_high_90;
+    });
+    return Object.keys(totals).map(function(code) {
+      return {
+        iso_code: code,
+        value: Math.round((totals[code].sum / totals[code].n) * 10) / 10,
+        n_wines: totals[code].n,
+        n_high_90: totals[code].n90
+      };
+    });
+  }
+
+  var chart = $(el).highcharts();
+  var filter = new crosstalk.FilterHandle(group);
+  filter.on('change', function(e) {
+    var newData = aggregate(e.value);
+    chart.series[0].setData(newData, true, false, false);
+  });
+}
+", wine_records_json, "wine_year_filter")
+
+htmlwidgets::onRender(wine_map, wine_map_js)
+```
 
 ```{r}
 #| label: year-slider
 
-filter_slider("year", "Year", shared_combined, ~year, step = 1, width = "100%")
+filter_slider("year_filter", "Year", shared_wine, ~year, step = 1, width = "100%")
 ```
 
-Use the tabs to switch between the two maps and the slider above to move
-through years — both maps are linked to the same year selection, so you can
-flip back and forth to compare a given year's cumulative emissions against
-that vintage's wine scores. Bear in mind this is a purely descriptive,
+Drag the slider to move through vintages (or select a range, which the map
+averages, weighted by the number of wines reviewed that year) — only the
+wine-score map above responds. Bear in mind this is a purely descriptive,
 country-level comparison: wine quality here reflects only the country's
 average review score for wines reviewed by Wine Enthusiast in that vintage,
 which is affected by which countries/producers happened to be reviewed, not
@@ -140,18 +202,32 @@ wine_year_lat <- wine |>
 
 lat_co2 <- wine_year_lat |>
   inner_join(co2_world, by = c("vintage" = "year")) |>
-  filter(n_wines >= 10)
+  filter(n_wines >= 10) |>
+  arrange(vintage)
 
 spearman_lat <- cor(lat_co2$mean_abs_latitude, lat_co2$cumulative_co2, method = "spearman")
 
-girafe(ggobj = ggplot(lat_co2, aes(cumulative_co2, mean_abs_latitude)) +
-  geom_point_interactive(aes(tooltip = paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines), size = n_wines)) +
-  geom_path(alpha = 0.3) +
-  labs(
-    x = "Global cumulative CO2 emissions (Mt)",
-    y = "Mean |latitude| of \u226590-point wines",
-    size = "N wines"
-  ))
+plot_ly(lat_co2) |>
+  add_lines(
+    x = ~vintage, y = ~cumulative_co2, name = "Cumulative CO2 (Mt)",
+    line = list(color = "firebrick"), yaxis = "y"
+  ) |>
+  add_markers(
+    x = ~vintage, y = ~mean_abs_latitude, name = "Mean |latitude| of \u226590-pt wines",
+    yaxis = "y2",
+    marker = list(
+      size = ~n_wines, sizeref = 2 * max(lat_co2$n_wines) / (40^2), sizemode = "area",
+      color = "steelblue"
+    ),
+    text = ~paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines),
+    hoverinfo = "text"
+  ) |>
+  layout(
+    xaxis = list(title = "Vintage year"),
+    yaxis = list(title = "Global cumulative CO2 (Mt)"),
+    yaxis2 = list(title = "Mean |latitude| (\u00b0)", overlaying = "y", side = "right"),
+    legend = list(orientation = "h", y = -0.2)
+  )
 ```
 
 Spearman correlation: `r round(spearman_lat, 2)`.

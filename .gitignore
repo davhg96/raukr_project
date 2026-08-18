@@ -7,3 +7,4 @@ _site
 .posit
 /.quarto/
 **/*.quarto_ipynb
+data/.DS_Store
