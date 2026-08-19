@@ -8,3 +8,5 @@ _site
 /.quarto/
 **/*.quarto_ipynb
 data/.DS_Store
+/wine-quality-world_cache
+/wine-quality-world_files
