@@ -16,6 +16,26 @@ head(wine)
 ```
 
 ```{r}
+
+varwine <- wine %>% 
+  select(country, points, variety) %>% 
+  group_by(country, variety) %>% 
+  summarise(var_mean_points = mean(points)) %>% 
+  ungroup() 
+```
+
+```{r}
+#| label: fig-avrpoints
+varwine %>% 
+  mutate(countryvariety = paste(country, variety, sep = "_")) %>% 
+  arrange(desc(var_mean_points)) %>% 
+  head(100) %>% 
+  ungroup() %>% 
+  hchart("column", hcaes(x= countryvariety, y = var_mean_points))
+```
+@fig-avrpoints shows the sorted average quality by wine type and country.
+
+```{r}
 #| label: tbl-cap
 
 wine %>% select(country, points, price, province, variety, title) %>%
@@ -42,6 +62,13 @@ wine_points <- wine |>
 
 ```
 
+```{r}
+#| column: margin
+#| fig-height: 2.5
+head(wine_points)
+wine_points %>% arrange(desc(avg_points)) %>% head(5) %>% hchart(type="column", hcaes(x=country, y= avg_points))
+
+```
 
 ```{r}
 #| label: fig-province-points
