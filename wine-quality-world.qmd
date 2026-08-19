@@ -26,7 +26,7 @@ library(gt)
 #| fig-height: 5
 
 wine <- read_csv("winemag-data-130k-v2.csv")
-colnames(wine)
+#colnames(wine)
 data(GNI2014, package = "treemap") # This data is needed to get the iso3  from the country name
 
 prov_price <- wine |>
@@ -52,7 +52,7 @@ prov_price |>
     options3d = list(enabled = TRUE, beta = 15, alpha = 15))
 ```
 
-## Number of wines by country
+## Wolrd map of wine price by country
 ```{r}
 #| label: fig-province-price
 #| fig-height: 5
@@ -65,7 +65,18 @@ hcmap(map = "custom/world-robinson-lowres",
 ```
 @fig-province-price shows the average price by country.
 
-### Top 5 countries by number of wines
+## Distribution of average price and number of wines by country
+```{r}
+#| label: fig-province-price-density
+#| fig-height: 5
+
+prov_price %$% 
+  hchart(avg_price, color = "#17b8b6", name = "average price") |> 
+  hc_title(text = "Distribution of average price by country")
+```
+@fig-province-price-density shows the distribution of average price by country.
+
+### Top 5 countries by number of wines produced
 ```{r}
 #| column: margin
 
@@ -77,7 +88,7 @@ prov_price |>
     options3d = list(enabled = TRUE, beta = 15, alpha = 15))
 ```
 
-## Distribution of wine prices by country
+## World map of wine labels produced by country
 ```{r}
 #| label: fig-nwines-price
 #| fig-height: 5
@@ -91,16 +102,6 @@ hcmap(map = "custom/world-robinson-lowres",
 @fig-nwines-price shows the number of wines by country.
 
 
-## Distribution of average price and number of wines by country
-```{r}
-#| label: fig-province-price-density
-#| fig-height: 5
-
-prov_price %$% 
-  hchart(avg_price, color = "#17b8b6", name = "average price") |> 
-  hc_title(text = "Distribution of average price by country")
-```
-@fig-province-price-density shows the distribution of average price by country.
 
 ### Distribution of number of wines by country
 ```{r}
@@ -115,7 +116,16 @@ prov_price %$%
 
 
 ## Do points predict price?
+### Relationship between points and log-price
+```{r}
+#| label: fig-points-vs-price
+#| fig-height: 5
+#| message: false
+#| cache: true
 
+hchart(wp, "scatter", hcaes(x = points, y = log2(price+1)))
+```
+@fig-points-vs-price shows the relationship between points and log-price.
 ### Correlation between points and price
 ```{r}
 #| label: points-price-corr
@@ -139,14 +149,5 @@ summary(log_price_model)
 - Pearson correlation on log-price is: `r round(pearson_r_logprice, 2)`
 - The log-price model explains `r round(summary(log_price_model)$r.squared, 2)` of the variation in log-price.
 
-## Relationship between points and log-price
-```{r}
-#| label: fig-points-vs-price
-#| fig-height: 5
-#| message: false
-#| cache: true
 
-hchart(wp, "scatter", hcaes(x = points, y = log2(price+1)))
-```
-@fig-points-vs-price shows the relationship between points and log-price.
 

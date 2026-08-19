@@ -1,0 +1,28 @@
+color:
+  palette:
+    # white wine tones (light mode)
+    cream: "#FBF7EE"
+    straw: "#E8D9A0"
+    gold: "#ded535"  #"#C9A227"
+    umber: "#4A3728"
+    # red wine tones (dark mode)
+    wine-black: "#f7d0da"  #"#2A0A12"
+    garnet: "#5C1A2E"
+    burgundy: "#6B1E2B"
+    blush: "#2b1f21"   #"#EBD3D8"
+    rose: "#C97B92"
+  foreground:
+    light: umber
+    dark: blush
+  background:
+    light: cream
+    dark: wine-black
+  primary:
+    light: gold
+    dark: burgundy
+  secondary:
+    light: straw
+    dark: garnet
+  link:
+    light: gold
+    dark: rose

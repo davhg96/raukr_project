@@ -10,3 +10,5 @@ _site
 data/.DS_Store
 /wine-quality-world_cache
 /wine-quality-world_files
+site_libs/
+wine-quality-world.html

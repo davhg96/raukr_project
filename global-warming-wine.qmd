@@ -127,8 +127,9 @@ plot_geo(shared_wine) |>
     geo = list(
       showframe = FALSE, showcoastlines = FALSE,
       projection = list(type = "natural earth"),
-      showland = TRUE, landcolor = "#e0e0e0", #show all countries
-      showcountries = TRUE, countrycolor = "white"
+      showland = TRUE, landcolor = "#e0e0e0",# show all countr
+      showcountries = TRUE, countrycolor = "white",
+      bgcolor = "rgba(0,0,0,0)"
     )
   )
 ```
