@@ -16,32 +16,6 @@ varwine <- wine %>%
   summarise(var_mean_points = mean(points)) %>% 
   ungroup() 
 ```
-
-
-
-```{r}
-#| label: fig-avrpoints
-varwine %>% 
-  mutate(countryvariety = paste(country, variety, sep = "_")) %>% 
-  arrange(desc(var_mean_points)) %>% 
-  head(100) %>% 
-  ungroup() %>% 
-  hchart("column", hcaes(x= countryvariety, y = var_mean_points))
-```
-@fig-avrpoints shows the sorted average quality by wine type and country.
-
-```{r}
-#| label: tbl-cap
-
-wine %>% select(country, points, price, province, variety, title) %>%
-  mutate(year = as.numeric(str_extract(title, "\\d{4}"))) %>%
-  select(-title) %>%
-  datatable()
-```
-@tbl-cap Shows the overall wine quality in the world
-
-
-
 ```{r}
 data(GNI2014, package = "treemap")
 
@@ -56,16 +30,6 @@ wine_points <- wine |>
     left_join(GNI2014 |> dplyr::select(iso3, country) |> distinct(), by = "country")
 
 ```
-
-```{r}
-#| column: margin
-#| fig-height: 2.5
-wine_points %>% arrange(desc(avg_points)) %>% head(5) %>% 
-  hchart(type="column", hcaes(x=country, y= avg_points))
-
-```
-
-
 ```{r}
 # best wine in each country
 best_wine_by_country <- wine |>
@@ -82,7 +46,13 @@ best_wine_by_country <- wine |>
 wine_points <- wine_points |>
   left_join(best_wine_by_country, by = "country")
 ```
+```{r}
+#| column: margin
+#| fig-height: 2.5
+wine_points %>% arrange(desc(avg_points)) %>% head(5) %>% 
+  hchart(type="column", hcaes(x=country, y= avg_points))
 
+```
 ```{r}
 #| label: fig-province-points
 #| fig-height: 5
@@ -95,3 +65,38 @@ hcmap(map = "custom/world-robinson-lowres",
     hc_tooltip(pointFormat = "<b>{point.name}</b><br>Avg points: {point.value:.1f}<br>Top wine: {point.best_wine} ({point.best_points} pts)")
 ```
 @fig-province-points shows the average points by country.
+
+
+
+```{r}
+#| label: tbl-cap
+
+wine %>% select(country, points, price, province, variety, title) %>%
+  mutate(year = as.numeric(str_extract(title, "\\d{4}"))) %>%
+  select(-title) %>%
+  datatable()
+```
+@tbl-cap Shows the overall wine quality in the world
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#| label: fig-avrpoints
+varwine %>% 
+  mutate(countryvariety = paste(country, variety, sep = "_")) %>% 
+  arrange(desc(var_mean_points)) %>% 
+  head(100) %>% 
+  ungroup() %>% 
+  hchart("column", hcaes(x= countryvariety, y = var_mean_points))|>
+  hc_xAxis(title = list(text = "Country / Variety")) |>
+  hc_yAxis(title = list(text = "Mean Score (pts)"))
+```
+@fig-avrpoints shows the sorted average quality by wine type and country.

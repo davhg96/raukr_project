@@ -1,0 +1,4 @@
+- source: project
+  posit-connect-cloud:
+    - id: 01a01a69-0073-5952-019b-97a4d2b7f6dd
+      url: https://connect.posit.cloud/davhg96/content/01a01a69-0073-5952-019b-97a4d2b7f6dd
