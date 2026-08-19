@@ -164,13 +164,13 @@ dominated by one or two data points.
 #| fig-height: 5
 
 wine_year_lat <- wine |>
-  filter(!is.na(vintage), points >= 90, !is.na(wine_region_latitude)) |>
+  filter(!is.na(vintage), points >= 85, !is.na(wine_region_latitude)) |>
   group_by(vintage) |>
   summarise(mean_abs_latitude = mean(abs(wine_region_latitude)), n_wines = n(), .groups = "drop")
 
 lat_co2 <- wine_year_lat |>
   inner_join(co2_world, by = c("vintage" = "year")) |>
-  filter(n_wines >= 10) |>
+  filter(n_wines >= 10) |> # filtering number of wines in a year, if lower lots of noise appear
   arrange(vintage)
 
 spearman_lat <- cor(lat_co2$mean_abs_latitude, lat_co2$cumulative_co2, method = "spearman")
@@ -197,8 +197,27 @@ plot_ly(lat_co2) |>
     legend = list(orientation = "h", y = -0.2)
   )
 ```
-
 Spearman correlation: `r round(spearman_lat, 2)`.
+```{r}
+plot_ly(lat_co2) |>
+  add_markers(
+    x = ~cumulative_co2, y = ~mean_abs_latitude, name = "Mean |latitude| of \u226590-pt wines",
+    marker = list(
+      size = ~n_wines, sizeref = 2 * max(lat_co2$n_wines) / (40^2), 
+      sizemode = "area",
+      color = "steelblue"
+    ),
+    text = ~paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines),
+    hoverinfo = "text"
+  ) |>
+  layout(
+    xaxis = list(title = "Global cumulative CO2 (Mt)"),
+    yaxis = list(title = "Mean |latitude| (\u00b0)"),
+
+    legend = list(orientation = "h", y = -0.2)
+  )
+
+```
 
 Over the `r min(lat_co2$vintage)`\u2013`r max(lat_co2$vintage)` window covered
 by high-scoring wines with known region latitude, the correlation between
