@@ -198,7 +198,7 @@ plot_ly(lat_co2) |>
   )
 ```
 Spearman correlation: `r round(spearman_lat, 2)`.
-```{r}
+<!-- ```{r}
 #| label: latitude-co2
 #| message: false
 #| fig-height: 5
@@ -220,7 +220,7 @@ plot_ly(lat_co2) |>
     legend = list(orientation = "h", y = -0.2)
   )
 
-```
+``` -->
 
 From 1990-2016 window coveredby high-scoring wines with known region latitude, the correlation between
 global cumulative CO2 and mean production latitude is weak
@@ -233,3 +233,76 @@ growth, reviewer assignment, publication coverage). Treat this as a
 starting point for a much more careful analysis (e.g. region-level
 coordinates, controlling for which countries are reviewed each year) rather
 than a conclusive finding.
+
+## Focusing on later years with an increased ammount of data...
+
+```{r}
+#| label: latitude-co2-year-Extra
+#| message: false
+#| fig-height: 5
+
+wine_year_lat <- wine |>
+  filter(!is.na(vintage), points >= 85, !is.na(wine_region_latitude)) |>
+  group_by(vintage) |>
+  summarise(mean_abs_latitude = mean(abs(wine_region_latitude)), n_wines = n(), .groups = "drop")
+
+lat_co2 <- wine_year_lat |>
+  inner_join(co2_world, by = c("vintage" = "year")) |>
+  filter(n_wines >= 45) |> # filtering number of wines in a year, if lower lots of noise appear
+  arrange(vintage)
+
+spearman_lat_extra <- cor(lat_co2$mean_abs_latitude, lat_co2$cumulative_co2, method = "spearman")
+
+
+plot_ly(lat_co2) |>
+  add_lines(
+    x = ~vintage, y = ~cumulative_co2, name = "Cumulative CO2 (Mt)",
+    line = list(color = "firebrick"), yaxis = "y"
+  ) |>
+  add_markers(
+    x = ~vintage, y = ~mean_abs_latitude, name = "Mean |latitude| of \u226590-pt wines",
+    yaxis = "y2",
+    marker = list(
+      size = ~n_wines, sizeref = 2 * max(lat_co2$n_wines) / (40^2), sizemode = "area",
+      color = "steelblue"
+    ),
+    text = ~paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines),
+    hoverinfo = "text"
+  ) |>
+  layout(
+    xaxis = list(title = "Vintage year"),
+    yaxis = list(title = "Global cumulative CO2 (Mt)"),
+    yaxis2 = list(title = "Mean |latitude| (\u00b0)", overlaying = "y", side = "right"),
+    legend = list(orientation = "h", y = -0.2)
+  )
+```
+Spearman correlation: `r round(spearman_lat, 2)`.
+<!-- ```{r}
+#| label: latitude-co2-Extra
+#| message: false
+#| fig-height: 5
+plot_ly(lat_co2) |>
+  add_markers(
+    x = ~cumulative_co2, y = ~mean_abs_latitude, name = "Mean |latitude| of \u226590-pt wines",
+    marker = list(
+      size = ~n_wines, sizeref = 2 * max(lat_co2$n_wines) / (40^2), 
+      sizemode = "area",
+      color = "steelblue"
+    ),
+    text = ~paste0(vintage, ": ", round(mean_abs_latitude, 1), "\u00b0, n=", n_wines),
+    hoverinfo = "text"
+  ) |>
+  layout(
+    xaxis = list(title = "Global cumulative CO2 (Mt)"),
+    yaxis = list(title = "Mean |latitude| (\u00b0)"),
+
+    legend = list(orientation = "h", y = -0.2)
+  )
+
+``` -->
+
+From 1990-2016 window coveredby high-scoring wines with known region latitude, the correlation between
+global cumulative CO2 and mean production latitude is much stronger
+(`r round(spearman_lat_extra, 2)`) after the number of recorded wines increased.
+This is inidicative of a climate shift: 
+Of course limitations remain, as the latitude is measured coarsely on the centroid of countries, not individual wineyards.
