@@ -159,7 +159,7 @@ with at least 10 such wines, since earlier/sparser years would otherwise be
 dominated by one or two data points.
 
 ```{r}
-#| label: latitude-co2
+#| label: latitude-co2-year
 #| message: false
 #| fig-height: 5
 
@@ -199,6 +199,9 @@ plot_ly(lat_co2) |>
 ```
 Spearman correlation: `r round(spearman_lat, 2)`.
 ```{r}
+#| label: latitude-co2
+#| message: false
+#| fig-height: 5
 plot_ly(lat_co2) |>
   add_markers(
     x = ~cumulative_co2, y = ~mean_abs_latitude, name = "Mean |latitude| of \u226590-pt wines",
@@ -219,8 +222,7 @@ plot_ly(lat_co2) |>
 
 ```
 
-Over the `r min(lat_co2$vintage)`\u2013`r max(lat_co2$vintage)` window covered
-by high-scoring wines with known region latitude, the correlation between
+From 1990-2016 window coveredby high-scoring wines with known region latitude, the correlation between
 global cumulative CO2 and mean production latitude is weak
 (`r round(spearman_lat, 2)`). This is not strong evidence of a
 climate-driven shift: the wine-region latitude here is a coarse,
