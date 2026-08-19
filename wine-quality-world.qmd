@@ -12,194 +12,141 @@ library(stringr)
 library(ggplot2)
 library(ggiraph)
 library(tidytext)
-
-source("R/wrangle_wine.R")
-wine <- get_wine_data()
+library(highcharter)
+library(magrittr)
+library(readr)
+library(glmnet)
+library(gt)
 ```
 
-This page explores the `winemag` wine-tasting reviews: how price varies by
-province, whether points predict price, whether reviewers specialize, and
-what language distinguishes highly- vs. poorly-rated wines.
 
-## Which province has the highest average price?
-
+## Wine price by country
 ```{r}
-#| label: province-price
+#| label: fig-price
 #| fig-height: 5
+
+wine <- read_csv("winemag-data-130k-v2.csv")
+colnames(wine)
+data(GNI2014, package = "treemap") # This data is needed to get the iso3  from the country name
 
 prov_price <- wine |>
   filter(!is.na(province), !is.na(price)) |>
-  group_by(province) |>
-  summarise(avg_price = mean(price), n_wines = n(), .groups = "drop")
-
-top_all <- prov_price |> slice_max(avg_price, n = 10)
-top_10plus <- prov_price |> filter(n_wines >= 10) |> slice_max(avg_price, n = 10)
-
-plot_province_price <- function(df, subtitle) {
-  ggplot(df, aes(x = avg_price, y = reorder(province, avg_price))) +
-    geom_col_interactive(aes(tooltip = paste0(province, ": $", round(avg_price, 1), " (n=", n_wines, ")"))) +
-    labs(x = "Average price (USD)", y = NULL, subtitle = subtitle)
-}
-
-girafe(ggobj = plot_province_price(top_all, "All provinces (unfiltered)"))
+  mutate(country = ifelse(country=="US", "United States", country)) |>
+  mutate(country = ifelse(country=="Macedonia", "Macedonia, FYR", country)) |>
+  mutate(country = ifelse(country=="Slovakia", "Slovak Republic", country)) |>
+  mutate(country = ifelse(country=="England", "United Kingdom", country)) |>
+  group_by(country) |>
+  summarise(avg_price = mean(price), n_wines = n(), .groups = "drop") |>
+  left_join(GNI2014 |> dplyr::select(iso3, country) |> distinct(), by = "country")
 ```
 
-Unfiltered, the top provinces by average price are dominated by
-provinces with only a handful of wines (e.g. `r top_all$province[1]` has
-just `r top_all$n_wines[1]` review(s)) — a small-sample artifact rather than
-a meaningful signal.
-
+### Top 5 countries by average wine price
 ```{r}
-#| label: province-price-filtered
+#| column: margin
+
+prov_price |> 
+  arrange(desc(avg_price)) |> head(5) |>
+  hchart(
+    type = "column",
+    hcaes(x = country, y = avg_price),
+    options3d = list(enabled = TRUE, beta = 15, alpha = 15))
+```
+
+## Number of wines by country
+```{r}
+#| label: fig-province-price
+#| fig-height: 5
+hcmap(map = "custom/world-robinson-lowres", 
+  download_map_data = getOption("highcharter.download_map_data"), 
+  data = prov_price,
+  value = "avg_price", 
+  joinBy = c("iso-a3", "iso3")) |> 
+    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)))
+```
+@fig-province-price shows the average price by country.
+
+### Top 5 countries by number of wines
+```{r}
+#| column: margin
+
+prov_price |> 
+  arrange(desc(n_wines)) |> head(5) |>
+  hchart(
+    type = "column",
+    hcaes(x = country, y = n_wines),
+    options3d = list(enabled = TRUE, beta = 15, alpha = 15))
+```
+
+## Distribution of wine prices by country
+```{r}
+#| label: fig-nwines-price
+#| fig-height: 5
+hcmap(map = "custom/world-robinson-lowres", 
+  download_map_data = getOption("highcharter.download_map_data"), 
+  data = prov_price,
+  value = "n_wines", 
+  joinBy = c("iso-a3", "iso3")) |> 
+    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)))
+```
+@fig-nwines-price shows the number of wines by country.
+
+
+## Distribution of average price and number of wines by country
+```{r}
+#| label: fig-province-price-density
 #| fig-height: 5
 
-girafe(ggobj = plot_province_price(top_10plus, "Provinces with \u226510 wines"))
+prov_price %$% 
+  hchart(avg_price, color = "#17b8b6", name = "average price") |> 
+  hc_title(text = "Distribution of average price by country")
 ```
+@fig-province-price-density shows the distribution of average price by country.
 
-Restricting to provinces with at least 10 reviews, `r top_10plus$province[1]`
-has the highest average price at $`r round(top_10plus$avg_price[1], 0)`,
-a more credible ranking than the unfiltered version.
+### Distribution of number of wines by country
+```{r}
+#| label: fig-province-nwines-density
+#| fig-height: 5
+
+prov_price %$% 
+  hchart(n_wines, color = "#17b8b6", name = "number of wines") |> 
+  hc_title(text = "Distribution of the number of wines by country")
+```
+@fig-province-nwines-density shows the distribution of the number of wines by country.
+
 
 ## Do points predict price?
 
-Price is strongly right-skewed (a few wines cost hundreds of dollars while
-most are under $50), so a plain Pearson correlation on raw price is
-misleading. We compare **Spearman's rank correlation** (robust to skew) with
-Pearson's correlation computed on **log-price**.
-
+### Correlation between points and price
 ```{r}
 #| label: points-price-corr
 
 wp <- wine |> filter(!is.na(price), !is.na(points))
-
 spearman_r <- cor(wp$points, wp$price, method = "spearman")
-pearson_log_r <- cor(wp$points, log(wp$price), method = "pearson")
-pearson_raw_r <- cor(wp$points, wp$price, method = "pearson")
+
+# With a single predictor, lasso shrinkage has no variables to select
+# between, so glmnet() refuses to fit; a simple linear model on log-price
+# gives the equivalent Pearson correlation on that scale.
+pearson_raw_r <- cor(wp$points, wp$price)
 ```
+- Spearman rank correlation is: `r round(spearman_r, 2)`
 
-- Pearson correlation on raw price: `r round(pearson_raw_r, 2)`
-- Pearson correlation on log(price): `r round(pearson_log_r, 2)`
-- Spearman rank correlation: `r round(spearman_r, 2)`
-
+### linear model if points predict log-price
 ```{r}
-#| label: points-price-plot
+log_price_model <- lm(log2(price+1) ~ points, data = wp)
+pearson_r_logprice <- cor(wp$points, log2(wp$price+1))
+summary(log_price_model) 
+```
+- Pearson correlation on log-price is: `r round(pearson_r_logprice, 2)`
+- The log-price model explains `r round(summary(log_price_model)$r.squared, 2)` of the variation in log-price.
+
+## Relationship between points and log-price
+```{r}
+#| label: fig-points-vs-price
 #| fig-height: 5
 #| message: false
+#| cache: true
 
-set.seed(4831)
-wp_sample <- wp |> slice_sample(n = 6000)
-
-girafe(ggobj = ggplot(wp_sample, aes(points, price)) +
-  geom_jitter_interactive(
-    aes(tooltip = paste0(title, "\n$", price, ", ", points, " pts")),
-    alpha = 0.3, width = 0.3, height = 0
-  ) +
-  scale_y_log10() +
-  labs(x = "Points", y = "Price (USD, log scale)"))
+hchart(wp, "scatter", hcaes(x = points, y = log2(price+1)))
 ```
+@fig-points-vs-price shows the relationship between points and log-price.
 
-The raw-price Pearson correlation (`r round(pearson_raw_r, 2)`) understates
-the relationship because of price's skew; both the log-price Pearson
-correlation and the Spearman correlation agree on a **moderate positive**
-association (~0.6) — higher-scoring wines tend to cost more, but points
-explain only part of the variation in price (plenty of highly-rated wines
-remain affordable, and some expensive wines score modestly).
-
-## Reviewer-level trends: do reviewers specialize?
-
-For each reviewer we compute a concentration index (Herfindahl–Hirschman
-Index, HHI) over the provinces and varieties they've reviewed. HHI ranges
-from close to 0 (reviews spread evenly across many categories) to 1 (all
-reviews concentrated in a single category).
-
-```{r}
-#| label: reviewer-specialization
-#| fig-height: 6
-
-specialization <- function(df, group_col) {
-  df |>
-    filter(!is.na(taster_name), !is.na({{ group_col }})) |>
-    count(taster_name, {{ group_col }}) |>
-    group_by(taster_name) |>
-    mutate(total = sum(n), share = n / total) |>
-    summarise(
-      n_reviews = sum(n),
-      n_categories = n(),
-      hhi = sum(share^2),
-      .groups = "drop"
-    )
-}
-
-spec_province <- specialization(wine, province) |> mutate(dimension = "Province")
-spec_variety <- specialization(wine, variety) |> mutate(dimension = "Variety")
-
-spec_combined <- bind_rows(spec_province, spec_variety) |>
-  filter(n_reviews >= 50)
-
-girafe(ggobj = ggplot(spec_combined, aes(hhi, reorder(taster_name, hhi), fill = dimension)) +
-  geom_col_interactive(
-    aes(tooltip = paste0(taster_name, " (", dimension, "): HHI=", round(hhi, 2), ", ", n_categories, " categories, n=", n_reviews)),
-    position = "dodge"
-  ) +
-  labs(x = "Concentration (HHI)", y = NULL, fill = NULL))
-```
-
-Concentration varies widely across reviewers. Some (e.g. reviewers with very
-few total reviews or working for a single publication's regional beat) are
-highly concentrated in one or two provinces or varieties (HHI near 1),
-while others such as Roger Voss or Michael Schachner cover dozens of
-provinces and varieties with low concentration — consistent with broad,
-generalist coverage rather than specialization. Note that very low review
-counts inflate apparent specialization, so this chart already filters to
-reviewers with at least 50 reviews.
-
-## What language distinguishes positive and negative reviews?
-
-We define **positive** reviews as points \u2265 90 and **negative** reviews as
-points \u2264 85 (roughly the top and bottom quartiles). Rather than comparing
-raw term frequency — which mostly surfaces generic wine vocabulary common to
-both groups ("fruit", "palate", "finish") — we compute a **log-odds ratio**
-of each word's frequency in positive vs. negative reviews, keeping only
-words that appear at least 200 times across both groups combined.
-
-```{r}
-#| label: text-mining
-#| fig-height: 6
-#| message: false
-
-data("stop_words")
-
-wine_words <- wine |>
-  filter(review_sentiment %in% c("positive", "negative")) |>
-  select(review_sentiment, description) |>
-  unnest_tokens(word, description) |>
-  anti_join(stop_words, by = "word") |>
-  filter(!word %in% c("wine", "wines"), !str_detect(word, "^\\d+$"))
-
-word_freq <- wine_words |>
-  count(review_sentiment, word) |>
-  pivot_wider(names_from = review_sentiment, values_from = n, values_fill = 0) |>
-  filter(positive + negative >= 200) |>
-  mutate(
-    prop_pos = (positive + 1) / (sum(positive) + 1),
-    prop_neg = (negative + 1) / (sum(negative) + 1),
-    log_ratio = log2(prop_pos / prop_neg)
-  )
-
-top_terms <- bind_rows(
-  word_freq |> slice_max(log_ratio, n = 15) |> mutate(sentiment = "More common in positive reviews"),
-  word_freq |> slice_min(log_ratio, n = 15) |> mutate(sentiment = "More common in negative reviews")
-)
-
-ggplot(top_terms, aes(log_ratio, reorder(word, log_ratio))) +
-  geom_col() +
-  facet_wrap(~sentiment, scales = "free_y") +
-  labs(x = "Log2 odds ratio (positive vs. negative)", y = NULL)
-```
-
-Positive reviews lean on terms like "gorgeous", "stunning", and "wonderful",
-along with structural/aging descriptors ("grained" tannins, notions of a
-"decade" of aging potential). Negative reviews cluster around flaws and
-plainness: "watery", "bland", "generic", "dull", "thin", "flat" — vocabulary
-describing a lack of concentration or character rather than an outright
-technical fault.
