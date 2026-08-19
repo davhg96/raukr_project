@@ -70,6 +70,24 @@ wine_points %>% arrange(desc(avg_points)) %>% head(5) %>% hchart(type="column", 
 
 ```
 
+
+```{r}
+# best wine in each country
+best_wine_by_country <- wine |>
+  filter(!is.na(province), !is.na(price)) |>
+  mutate(country = ifelse(country=="US", "United States", country)) |>
+  mutate(country = ifelse(country=="Macedonia", "Macedonia, FYR", country)) |>
+  mutate(country = ifelse(country=="Slovakia", "Slovak Republic", country)) |>
+  mutate(country = ifelse(country=="England", "United Kingdom", country)) |>
+  group_by(country) |>
+  slice_max(points, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  select(country, best_wine = title, best_points = points)
+
+wine_points <- wine_points |>
+  left_join(best_wine_by_country, by = "country")
+```
+
 ```{r}
 #| label: fig-province-points
 #| fig-height: 5
@@ -78,6 +96,7 @@ hcmap(map = "custom/world-robinson-lowres",
   data = wine_points,
   value = "avg_points",
   joinBy = c("iso-a3", "iso3")) |>
-    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1)))
+    hc_colorAxis(stops = color_stops(colors = viridisLite::inferno(10, begin = 0.1))) |>
+    hc_tooltip(pointFormat = "<b>{point.name}</b><br>Avg points: {point.value:.1f}<br>Top wine: {point.best_wine} ({point.best_points} pts)")
 ```
 @fig-province-points shows the average points by country.
