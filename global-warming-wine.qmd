@@ -7,6 +7,7 @@ title: "Global warming and wine"
 #| message: false
 
 library(dplyr)
+library(tidyverse)
 library(plotly)
 library(crosstalk)
 library(highcharter)
@@ -24,14 +25,14 @@ min_vintage <- min(wine$vintage, na.rm = TRUE)
 max_co2_year <- max(co2_country$year)
 ```
 
-## Cumulative CO2 emissions and wine quality, side by side
+## Cumulative CO2 emissions and wine quality
 
 The two maps below are stacked so both are always visible. The **cumulative
 CO2** map is static — it shows each country's all-time cumulative emissions
-as of `r max_co2_year`, since cumulative totals only grow monotonically and
+up until 2021, since cumulative totals only grow monotonically and
 aren't meaningfully "sliced" by a single vintage year. The slider underneath
 filters only the **wine score** map, letting you step through vintages
-`r min_vintage`\u2013`r max_co2_year`. **Note**: vintages before roughly 2000
+1904-2021. **Note**: vintages before roughly 2000
 are extremely sparse in the wine dataset (often a single wine per year), so
 the wine-quality map will look mostly empty/uniform for early years — this is
 a data coverage limitation, not a real absence of production.
@@ -117,24 +118,26 @@ ylgn_colorscale <- Map(function(x, col) list(x, col),
 
 
 plot_geo() |>
-  add_trace(
+  add_trace( # default view with all countries
     data = world_countries,
     locations = ~iso_code, locationmode = "ISO-3",
     z = 1, colorscale = list(list(0, "#e0e0e0"), list(1, "#e0e0e0")),
     showscale = FALSE, hoverinfo = "text",
     text = "No wine reviews for the selected year(s)"
   ) |>
-  add_trace(
+  add_trace( # scored view
     data = shared_wine,
     locations = ~iso_code, locationmode = "ISO-3",
-    z = ~value, zauto = FALSE, zmin = wine_value_range[1], zmax = wine_value_range[2],
+    z = ~value, zauto = FALSE, zmin = wine_value_range[1], 
+                              zmax = wine_value_range[2],
     colorscale = ylgn_colorscale,
     text = ~hover, hoverinfo = "text"
   ) |>
   colorbar(title = "Avg. score\n(pts)") |>
   layout(
     title = "Average wine score by country",
-    geo = list(showframe = FALSE, showcoastlines = FALSE, projection = list(type = "natural earth"))
+    geo = list(showframe = FALSE, showcoastlines = FALSE, 
+    projection = list(type = "natural earth"))
   )
 ```
 

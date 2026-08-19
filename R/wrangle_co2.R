@@ -12,6 +12,7 @@
 library(readr)
 library(dplyr)
 
+#data loading and cleaning a bit
 load_co2_data <- function(path = "data/CO2+Emissions/visualizing_global_co2_data.csv") {
   read_csv(path, show_col_types = FALSE) |>
     select(
@@ -21,8 +22,9 @@ load_co2_data <- function(path = "data/CO2+Emissions/visualizing_global_co2_data
       cumulative_co2, share_global_cumulative_co2
     ) |>
     filter(!is.na(iso_code), nchar(iso_code) == 3)
-}
+} 
 
+#Data saving
 cache_co2_data <- function(
   path = "data/CO2+Emissions/visualizing_global_co2_data.csv",
   out_path = "data/processed/co2_clean.rds"
@@ -33,6 +35,7 @@ cache_co2_data <- function(
   co2_clean
 }
 
+#Data loading
 get_co2_data <- function(
   out_path = "data/processed/co2_clean.rds",
   path = "data/CO2+Emissions/visualizing_global_co2_data.csv"

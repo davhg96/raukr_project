@@ -21,7 +21,7 @@ website:
 
 format:
   html:
-    theme: cosmo
+    theme: pulse
     toc: true
     grid:
       body-width: 1000px

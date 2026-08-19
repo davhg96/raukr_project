@@ -19,16 +19,17 @@ library(countrycode)
 #' Titles often embed extra 4-digit numbers unrelated to the vintage (e.g.
 #' winery founding years like "Hazlitt 1852 Vineyards 2013 Chardonnay"), and
 #' non-vintage wines use the literal token "NV" instead of a year. We pull all
-#' (18|19|20)xx tokens, keep the ones in a plausible vintage window
+#' (18|19|20)xx dates, keep the ones in a plausible vintage window
 #' (1900-2025), and take the most recent one: founding years predate this
 #' window's likely low bound in practice for wines in this dataset, while the
-#' true vintage is always the latest 4-digit token present.
-extract_vintage <- function(title) {
+#' true vintage is always the latest 4-digit date
+#' 
+extract_vintage <- function(title) { # this could be done with parsing numbers
   matches <- str_extract_all(title, "(?<!\\d)(18|19|20)\\d{2}(?!\\d)")
   vapply(matches, function(x) {
     x <- as.integer(x)
     x <- x[x >= 1900 & x <= 2025]
-    if (length(x) == 0) NA_integer_ else max(x)
+    if (length(x) == 0) NA_integer_ else max(x) # if no date keep NA, else keep the older date
   }, integer(1))
 }
 
@@ -71,7 +72,7 @@ cache_wine_data <- function(
   wine_clean
 }
 
-get_wine_data <- function(
+get_wine_data <- function(# Load data later
   out_path = "data/processed/wine_clean.rds",
   path = "data/winemag-data-130k-v2.csv",
   centroids_path = "data/country_centroids.csv"

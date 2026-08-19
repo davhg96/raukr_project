@@ -4,16 +4,13 @@ title: "Wine Quality & Climate Change"
 
 ## Project description
 
-*(placeholder — replace with your own project description)*
+For over 8000 years wine has been a major staple of human culture.
+Evolving from ancient ritualistic and religious uses in the Middle East and Mediterranean into a global symbol of social connection and regional identity.Today, winemaking remains deeply embedded in daily life, serving as both culinary and social staples in celebration and as a representation of a country's climate and heritage.
+This is now posibly being threatened by climate change, as our planet heats up wine production regions will face dificulties and new regions may become available for production.
 
-This project explores two questions: what shapes wine quality and pricing
-across regions, reviewers, and varieties, and whether there is any visible
-relationship between long-run global CO2 emissions and where high-quality
-wine is produced.
+
 
 ## Motivating questions
-
-*(placeholder — refine or replace)*
 
 - Which regions and reviewers stand out in the wine tasting data, and why?
 - Is there a relationship between a wine's rating and its price?
@@ -22,17 +19,15 @@ wine is produced.
 
 ## Data sources
 
-*(placeholder — add citations/links once finalized)*
 
 - **Wine tasting reviews**: `data/winemag-data-130k-v2.csv` — ~130,000 wine
   reviews with country, province, region, variety, price, points, reviewer,
-  and a free-text tasting description.
+  and a free-text tasting description from Maven analytics.
 - **CO2 emissions**: `data/CO2+Emissions/visualizing_global_co2_data.csv` —
   a country-year panel of CO2 emissions and related indicators, 1750–2021.
 
-## How to navigate this site
+## In this site
 
-*(placeholder)*
 
 - **Wine quality in the world** — descriptive analysis of the wine reviews:
   pricing by province, the points/price relationship, reviewer
