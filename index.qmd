@@ -22,9 +22,9 @@ This is now posibly being threatened by climate change, as our planet heats up w
 
 - **Wine tasting reviews**: `data/winemag-data-130k-v2.csv` — ~130,000 wine
   reviews with country, province, region, variety, price, points, reviewer,
-  and a free-text tasting description from Maven analytics.
+  and a free-text tasting description from Maven analytics. [Get the data](https://mavenanalytics.io/data-playground/wine-tasting)
 - **CO2 emissions**: `data/CO2+Emissions/visualizing_global_co2_data.csv` —
-  a country-year panel of CO2 emissions and related indicators, 1750–2021.
+  a country-year panel of CO2 emissions and related indicators, 1750–2021. [Get the data](https://mavenanalytics.io/data-playground/global-co2-emissions)
 
 ## In this site
 
