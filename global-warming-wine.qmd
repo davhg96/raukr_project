@@ -276,7 +276,7 @@ plot_ly(lat_co2) |>
     legend = list(orientation = "h", y = -0.2)
   )
 ```
-Spearman correlation: `r round(spearman_lat, 2)`.
+Spearman correlation: `r round(spearman_lat_extra, 2)`.
 <!-- ```{r}
 #| label: latitude-co2-Extra
 #| message: false
@@ -301,7 +301,7 @@ plot_ly(lat_co2) |>
 
 ``` -->
 
-From 1990-2016 window coveredby high-scoring wines with known region latitude, the correlation between
+From 1990-2016 window covered by high-scoring wines with known region latitude, the correlation between
 global cumulative CO2 and mean production latitude is much stronger
 (`r round(spearman_lat_extra, 2)`) after the number of recorded wines increased.
 This is inidicative of a climate shift: 
